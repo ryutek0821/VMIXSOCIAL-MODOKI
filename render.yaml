@@ -1,0 +1,28 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Render ダッシュボードで「New > Blueprint」からこのリポジトリを指定すると自動構築されます。
+services:
+  - type: web
+    name: vmixsocial-modoki
+    runtime: node
+    plan: free # 無料プランは永続ディスク不可・無操作でスリープ。常用は Starter 以上推奨。
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: APP_PASSWORD # 操作画面のログインパスワード（必ず設定）
+        sync: false # ← ダッシュボードで値を入力（リポジトリには保存しない）
+      - key: OUTPUT_TOKEN # 出力画面も非公開化したい場合のみ設定（任意）
+        sync: false
+      - key: SESSION_SECRET # Cookie署名用。自動生成させる
+        generateValue: true
+      - key: NODE_VERSION
+        value: "22"
+    # ─────────────────────────────────────────────────────────────
+    # キュー/画像を再起動後も保持したい場合（有料プランが必要）:
+    #   1) 下記 disk のコメントを外す
+    #   2) envVars に  - key: DATA_DIR \n    value: /var/data  を追加
+    # disk:
+    #   name: data
+    #   mountPath: /var/data
+    #   sizeGB: 1

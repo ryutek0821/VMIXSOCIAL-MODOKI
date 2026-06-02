@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VMIXSOCIAL もどき — 操作画面</title>
+    <link rel="stylesheet" href="/card.css" />
+    <link rel="stylesheet" href="/control.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>VMIXSOCIAL もどき</h1>
+      <div class="topbar__right">
+        <span id="conn" class="conn conn--off">未接続</span>
+        <a id="outputLink" class="btn btn--ghost" href="/output" target="_blank" rel="noopener">
+          出力画面を開く ↗
+        </a>
+        <button id="logoutBtn" class="btn btn--ghost" hidden>ログアウト</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <!-- 左：エディタ -->
+      <section class="panel editor">
+        <h2>投稿を作成</h2>
+
+        <div class="fetch">
+          <input
+            id="url"
+            type="text"
+            placeholder="X(Twitter)投稿URLを貼り付け（例: https://x.com/xxx/status/123...）"
+          />
+          <button id="fetchBtn" class="btn btn--primary">取得</button>
+        </div>
+        <p id="fetchMsg" class="msg"></p>
+
+        <div class="form">
+          <div class="avatar-row">
+            <img id="avatarPreview" class="avatar-thumb" alt="" />
+            <div class="avatar-fields">
+              <label class="lbl">アイコン</label>
+              <input id="avatar" type="text" placeholder="画像URL / 下のボタンで画像を選択" />
+              <input id="avatarFile" type="file" accept="image/*" class="file" />
+            </div>
+          </div>
+
+          <label class="lbl">表示名
+            <input id="name" type="text" maxlength="80" placeholder="山田 太郎" />
+          </label>
+
+          <label class="lbl">ユーザー名（@）
+            <input id="handle" type="text" maxlength="50" placeholder="taro_yamada" />
+          </label>
+
+          <label class="lbl">本文
+            <textarea id="text" rows="4" maxlength="1000" placeholder="投稿内容を入力"></textarea>
+          </label>
+
+          <label class="lbl">添付画像（任意）
+            <input id="image" type="text" placeholder="画像URL / 下のボタンで画像を選択" />
+          </label>
+          <div class="img-row">
+            <input id="imageFile" type="file" accept="image/*" class="file" />
+            <button id="clearImage" type="button" class="btn btn--ghost btn--sm">画像クリア</button>
+          </div>
+
+          <div class="opts">
+            <label class="check"><input id="verified" type="checkbox" /> 認証バッジ</label>
+            <label class="lbl lbl--inline">テーマ
+              <select id="theme">
+                <option value="">全体設定に従う</option>
+                <option value="dark">ダーク</option>
+                <option value="light">ライト</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="actions">
+            <button id="addBtn" class="btn btn--primary">＋ キューに追加</button>
+            <button id="updateBtn" class="btn btn--primary" hidden>更新を保存</button>
+            <button id="cancelEdit" class="btn btn--ghost" hidden>編集をやめる</button>
+            <button id="resetForm" type="button" class="btn btn--ghost">クリア</button>
+          </div>
+        </div>
+
+        <h3>プレビュー</h3>
+        <div id="preview" class="preview"></div>
+      </section>
+
+      <!-- 右：キュー＆設定 -->
+      <section class="panel queue">
+        <div class="queue__head">
+          <h2>キュー <span id="queueCount" class="count">0</span></h2>
+          <button id="offAir" class="btn btn--danger">■ オンエアOFF</button>
+        </div>
+
+        <div class="settings">
+          <label class="lbl lbl--inline">表示位置
+            <select id="position">
+              <option value="bottom-left">左下</option>
+              <option value="bottom-center">下中央</option>
+              <option value="bottom-right">右下</option>
+              <option value="center">中央</option>
+              <option value="top-left">左上</option>
+              <option value="top-right">右上</option>
+            </select>
+          </label>
+          <label class="lbl lbl--inline">全体テーマ
+            <select id="globalTheme">
+              <option value="dark">ダーク</option>
+              <option value="light">ライト</option>
+            </select>
+          </label>
+        </div>
+
+        <ul id="queueList" class="queue__list"></ul>
+        <p id="queueEmpty" class="empty">まだ投稿がありません。左で作成して「キューに追加」してください。</p>
+      </section>
+    </main>
+
+    <script type="module" src="/control.js"></script>
+  </body>
+</html>

@@ -1,0 +1,112 @@
+/* X風投稿カードの共通スタイル。
+   幅・各要素は em 基準なので、.x-card の font-size を変えるだけで全体が拡縮する。 */
+
+.x-card {
+  --bg: #000;
+  --text: #e7e9ea;
+  --secondary: #71767b;
+  --border: #2f3336;
+  --blue: #1d9bf0;
+
+  box-sizing: border-box;
+  width: 30em; /* font-size 20px なら 600px */
+  max-width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
+    "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", Meiryo, Arial, sans-serif;
+  font-size: 20px; /* 基準スケール */
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 0.9em 1em 1em;
+}
+.x-card[data-theme="light"] {
+  --bg: #fff;
+  --text: #0f1419;
+  --secondary: #536471;
+  --border: #cfd9de;
+}
+.x-card *,
+.x-card *::before,
+.x-card *::after {
+  box-sizing: border-box;
+}
+
+.x-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55em;
+}
+.x-card__avatar {
+  width: 2.4em;
+  height: 2.4em;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 auto;
+  background: var(--border);
+}
+.x-card__names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding-top: 0.1em;
+}
+.x-card__name {
+  display: flex;
+  align-items: center;
+  gap: 0.15em;
+  font-weight: 700;
+  font-size: 1em;
+  min-width: 0;
+}
+.x-card__display {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.x-card__badge {
+  width: 1.05em;
+  height: 1.05em;
+  flex: 0 0 auto;
+  color: var(--blue);
+}
+.x-card__handle {
+  color: var(--secondary);
+  font-size: 0.95em;
+}
+.x-card__logo {
+  width: 1.35em;
+  height: 1.35em;
+  color: var(--text);
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.x-card__body {
+  margin-top: 0.55em;
+  font-size: 1.15em;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.x-card__body:empty {
+  display: none;
+}
+.x-card .x-link {
+  color: var(--blue);
+}
+
+.x-card__media {
+  margin-top: 0.75em;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.x-card__media img {
+  display: block;
+  width: 100%;
+  max-height: 17em;
+  object-fit: cover;
+}

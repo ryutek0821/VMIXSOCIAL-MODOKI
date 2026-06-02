@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ログイン — VMIXSOCIAL もどき</title>
+    <link rel="stylesheet" href="/control.css" />
+    <style>
+      .login { max-width: 340px; margin: 12vh auto; padding: 28px; }
+      .login h1 { font-size: 18px; margin: 0 0 4px; }
+      .login p.sub { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+      .login form { display: flex; flex-direction: column; gap: 12px; }
+      .login .msg { min-height: 18px; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <div class="login panel">
+      <h1>VMIXSOCIAL もどき</h1>
+      <p class="sub">操作画面にログイン</p>
+      <form id="f">
+        <label class="lbl">パスワード
+          <input id="password" type="password" autocomplete="current-password" autofocus />
+        </label>
+        <button class="btn btn--primary" type="submit">ログイン</button>
+        <p id="msg" class="msg msg--err"></p>
+      </form>
+    </div>
+    <script>
+      document.getElementById('f').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const password = document.getElementById('password').value;
+        const r = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        })
+          .then((r) => r.json())
+          .catch(() => ({ ok: false, error: '通信エラー' }));
+        if (r.ok) location.href = '/';
+        else document.getElementById('msg').textContent = r.error || 'ログインに失敗しました';
+      });
+    </script>
+  </body>
+</html>

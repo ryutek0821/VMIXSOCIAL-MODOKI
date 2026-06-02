@@ -1,0 +1,44 @@
+/* 出力（オーバーレイ）画面。背景透過 — vMixのWebブラウザ入力はアルファ対応。 */
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
+
+.stage {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  padding: 4.5vh 4vw;
+  pointer-events: none;
+}
+
+/* 表示位置プリセット */
+.stage.pos-bottom-left   { align-items: flex-end;    justify-content: flex-start; }
+.stage.pos-bottom-center { align-items: flex-end;    justify-content: center;     }
+.stage.pos-bottom-right  { align-items: flex-end;    justify-content: flex-end;   }
+.stage.pos-center        { align-items: center;      justify-content: center;     }
+.stage.pos-top-left      { align-items: flex-start;  justify-content: flex-start; }
+.stage.pos-top-right     { align-items: flex-start;  justify-content: flex-end;   }
+
+.card-wrap {
+  transition: opacity 0.4s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  filter: drop-shadow(0 10px 34px rgba(0, 0, 0, 0.45));
+}
+
+/* 出力時のカードスケール（1080p想定で 23px → 幅約690px） */
+.card-wrap .x-card {
+  font-size: 23px;
+}
+
+.card-wrap.hidden {
+  opacity: 0;
+  transform: translateY(28px) scale(0.98);
+}
+.card-wrap.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
