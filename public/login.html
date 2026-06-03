@@ -18,8 +18,11 @@
       <h1>VMIXSOCIAL もどき</h1>
       <p class="sub">操作画面にログイン</p>
       <form id="f">
+        <label class="lbl">ID
+          <input id="id" type="text" autocomplete="username" autocapitalize="none" autofocus />
+        </label>
         <label class="lbl">パスワード
-          <input id="password" type="password" autocomplete="current-password" autofocus />
+          <input id="password" type="password" autocomplete="current-password" />
         </label>
         <button class="btn btn--primary" type="submit">ログイン</button>
         <p id="msg" class="msg msg--err"></p>
@@ -28,11 +31,12 @@
     <script>
       document.getElementById('f').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const id = document.getElementById('id').value.trim();
         const password = document.getElementById('password').value;
         const r = await fetch('/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password }),
+          body: JSON.stringify({ id, password }),
         })
           .then((r) => r.json())
           .catch(() => ({ ok: false, error: '通信エラー' }));

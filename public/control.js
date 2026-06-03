@@ -48,15 +48,18 @@ function setConn(ok) {
 fetch('/api/config')
   .then((r) => r.json())
   .then((cfg) => {
-    const token = cfg.outputToken ? `?token=${encodeURIComponent(cfg.outputToken)}` : '';
-    const url = `${location.origin}/output${token}`;
+    const url = `${location.origin}${cfg.outputUrl}`;
     $('outputLink').href = url;
-    $('outputLink').title = `vMixに設定するURL: ${url}`;
-    if (cfg.authEnabled) {
-      const lb = $('logoutBtn');
-      lb.hidden = false;
-      lb.onclick = () => fetch('/logout', { method: 'POST' }).then(() => (location.href = '/login'));
+    $('outputLink').title = `vMixに設定する出力URL: ${url}`;
+    if (cfg.serviceName) {
+      const h = document.querySelector('.topbar h1');
+      if (h) h.textContent = `VMIXSOCIAL もどき — ${cfg.serviceName}`;
+      document.title = `${cfg.serviceName} — VMIXSOCIAL もどき`;
     }
+    // マルチテナントでは常にログイン状態。ログアウトボタンを表示。
+    const lb = $('logoutBtn');
+    lb.hidden = false;
+    lb.onclick = () => fetch('/logout', { method: 'POST' }).then(() => (location.href = '/login'));
   })
   .catch(() => {});
 
