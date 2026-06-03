@@ -120,7 +120,7 @@ export async function cacheImage(url) {
 export function saveDataUrl(dataUrl) {
   const m = /^data:image\/(png|jpe?g|gif|webp);base64,(.+)$/i.exec(dataUrl || '');
   if (!m) return null;
-  ensureMediaDir();
+  ensureDirs();
   const ext = m[1].toLowerCase() === 'jpeg' ? 'jpg' : m[1].toLowerCase();
   const buf = Buffer.from(m[2], 'base64');
   const hash = createHash('sha1').update(buf).digest('hex').slice(0, 16);
