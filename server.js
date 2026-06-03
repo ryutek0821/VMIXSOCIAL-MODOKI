@@ -1,40 +1,92 @@
-// VMIXSOCIAL もどき サーバー本体
-// - express で操作画面/出力画面/メディアを配信
-// - WebSocket で状態をリアルタイム配信（操作画面 → サーバー → 出力画面/vMix内ブラウザ）
-// - 状態の変更は REST API、出力への反映は WebSocket ブロードキャストという一方向フロー
-// - APP_PASSWORD で操作画面/書き込みAPIを保護（公開デプロイ向け）
+// VMIXSOCIAL もどき サーバー本体（マルチテナント）
+// - 「アカウント（ID + パスワード）＝ 1 サービス」。各サービスは独立したキュー/オンエア/出力URLを持つ。
+// - 管理者は管理画面(/admin)からサービスを追加/削除/パスワード変更できる。
+// - 状態の変更は REST、出力への反映は WebSocket（サービス単位のルーム）ブロードキャスト。
+// - 旧・単一テナント運用（APP_PASSWORD / data/queue.json）は起動時に default サービスへ自動移行。
 
 import express from 'express';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { existsSync, copyFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import os from 'node:os';
 
 import * as state from './src/state.js';
+import * as accounts from './src/accounts.js';
 import { fetchTweet, cacheImage, saveDataUrl } from './src/twitter.js';
-import { ensureDirs, MEDIA_DIR } from './src/paths.js';
+import { ensureDirs, MEDIA_DIR, QUEUE_FILE, serviceQueueFile, ensureServiceDir } from './src/paths.js';
 import {
-  authEnabled,
-  outputTokenEnabled,
-  getOutputToken,
-  checkPassword,
-  checkOutputToken,
-  hasValidCookie,
-  setAuthCookie,
-  clearAuthCookie,
-  requireAuth,
+  issueSession,
+  clearSession,
+  readSession,
+  requireService,
+  requireAdmin,
+  constantTimeEqual,
 } from './src/auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = join(__dirname, 'public');
 
+// ---- 起動時マイグレーション/初期化 ----
+const generated = {}; // 初回自動生成したパスワードを起動バナーで知らせる
+const randomPw = () => randomBytes(6).toString('hex'); // 12桁
+
+function migrate() {
+  // 管理者が未設定なら作成（ADMIN_PASSWORD 無ければ生成して起動時に表示）
+  if (!accounts.hasAdmin()) {
+    let pw = process.env.ADMIN_PASSWORD;
+    if (!pw) {
+      pw = randomPw();
+      generated.admin = pw;
+    }
+    accounts.setAdminPassword(pw);
+  }
+  // 旧・単一テナント（queue.json / APP_PASSWORD）を default サービスへ引き継ぎ
+  const legacyExists = existsSync(QUEUE_FILE);
+  if ((legacyExists || process.env.APP_PASSWORD) && !accounts.serviceExists('default')) {
+    let pw = process.env.APP_PASSWORD;
+    if (!pw) {
+      pw = randomPw();
+      generated.default = pw;
+    }
+    accounts.ensureService('default', {
+      name: 'default',
+      password: pw,
+      outputToken: process.env.OUTPUT_TOKEN || undefined,
+    });
+    if (legacyExists && !existsSync(serviceQueueFile('default'))) {
+      ensureServiceDir('default');
+      try {
+        copyFileSync(QUEUE_FILE, serviceQueueFile('default'));
+      } catch (err) {
+        console.error('[migrate] 旧 queue.json の移行に失敗:', err.message);
+      }
+    }
+  }
+}
+
 ensureDirs();
-state.load();
+accounts.loadAccounts();
+migrate();
+
+// サービスの出力URL（相対パス。クライアント側で origin を前置）
+const outputPath = (sid) =>
+  `/output?service=${encodeURIComponent(sid)}&token=${accounts.getOutputToken(sid)}`;
+
+// 出力（/output・WS）へのアクセス可否：管理者 or そのサービスの操作Cookie or 正しい出力トークン
+function outputAuthorized(req, sid, token) {
+  const sess = readSession(req);
+  if (sess?.role === 'admin') return true;
+  if (sess?.role === 'service' && sess.sid === sid) return true;
+  const expected = accounts.getOutputToken(sid);
+  return !!expected && constantTimeEqual(token, expected);
+}
 
 const app = express();
-app.set('trust proxy', 1); // PaaSのリバースプロキシ越しでも req.secure / IP を正しく判定
+app.set('trust proxy', 1); // PaaS/プロキシ越しでも req.secure / IP を正しく判定
 app.use(express.json({ limit: '20mb' })); // アップロード画像(data URL)用に上限を引き上げ
 
 const isSecure = (req) => req.secure || req.headers['x-forwarded-proto'] === 'https';
@@ -42,51 +94,56 @@ const isSecure = (req) => req.secure || req.headers['x-forwarded-proto'] === 'ht
 // ヘルスチェック（PaaS用・認証不要）
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
-// --- ログイン ---
+// ---- 操作画面ログイン（ID + パスワード）----
 app.get('/login', (req, res) => {
-  if (!authEnabled() || hasValidCookie(req)) return res.redirect('/');
+  if (readSession(req)?.role === 'service') return res.redirect('/');
   res.sendFile(join(PUBLIC_DIR, 'login.html'));
 });
 app.post('/login', (req, res) => {
-  if (!authEnabled()) return res.json({ ok: true });
-  if (checkPassword(req.body?.password)) {
-    setAuthCookie(res, isSecure(req));
+  const { id, password } = req.body || {};
+  if (accounts.verifyService(id, password)) {
+    issueSession(res, { role: 'service', sid: id }, isSecure(req));
     return res.json({ ok: true });
   }
-  res.status(401).json({ ok: false, error: 'パスワードが違います' });
+  res.status(401).json({ ok: false, error: 'IDまたはパスワードが違います' });
 });
 app.post('/logout', (req, res) => {
-  clearAuthCookie(res);
+  clearSession(res);
   res.json({ ok: true });
 });
 
-// 静的アセット（css/js/画像）— 認証不要。出力画面やログイン画面でも使うため。
+// ---- 管理者ログイン ----
+app.post('/admin/login', (req, res) => {
+  if (accounts.verifyAdmin(req.body?.password)) {
+    issueSession(res, { role: 'admin' }, isSecure(req));
+    return res.json({ ok: true });
+  }
+  res.status(401).json({ ok: false, error: '管理者パスワードが違います' });
+});
+
+// 静的アセット（css/js/画像）— 認証不要。出力画面・ログイン画面・管理画面でも使う。
 app.use(express.static(PUBLIC_DIR, { index: false }));
 app.use('/media', express.static(MEDIA_DIR));
 
-// 出力画面（OUTPUT_TOKEN設定時はトークン or ログインCookie必須）
+// 管理画面（UIは静的。実データ取得/操作は /api/admin/* 側で認可）
+app.get(['/admin', '/admin/login'], (req, res) => res.sendFile(join(PUBLIC_DIR, 'admin.html')));
+
+// 出力画面（service + token、またはそのサービスの操作Cookie/管理者）
 app.get('/output', (req, res) => {
-  if (outputTokenEnabled() && !hasValidCookie(req) && !checkOutputToken(req.query.token)) {
+  const sid = req.query.service;
+  if (!sid || !accounts.serviceExists(sid)) {
+    return res.status(404).send('サービスが見つかりません。出力URLを確認してください。');
+  }
+  if (!outputAuthorized(req, sid, req.query.token)) {
     return res
       .status(401)
-      .send('この出力画面はトークンが必要です。URL末尾に ?token=... を付けてアクセスしてください。');
+      .send('この出力画面はトークンが必要です。管理画面のサービス別「出力URL」からアクセスしてください。');
   }
   res.sendFile(join(PUBLIC_DIR, 'output.html'));
 });
 
-// 操作画面（認証必須）
-app.get('/', requireAuth, (req, res) => res.sendFile(join(PUBLIC_DIR, 'control.html')));
-
-// --- ここから下の /api/* はすべて認証必須 ---
-app.use('/api', requireAuth);
-
-// クライアント設定（出力URL生成・ログアウト表示用）
-app.get('/api/config', (req, res) => {
-  res.json({ authEnabled: authEnabled(), outputToken: getOutputToken() || null });
-});
-
-// 現在状態の取得
-app.get('/api/state', (req, res) => res.json(state.getState()));
+// 操作画面（service セッション必須）
+app.get('/', requireService, (req, res) => res.sendFile(join(PUBLIC_DIR, 'control.html')));
 
 // avatar / image を保存形式（/media パス or 外部URL）に解決する
 async function resolveMedia(body) {
@@ -101,8 +158,74 @@ async function resolveMedia(body) {
   return out;
 }
 
+// ================= 管理API（admin セッション必須） =================
+const adminApi = express.Router();
+adminApi.use(requireAdmin);
+
+adminApi.get('/services', (req, res) => {
+  res.json({
+    ok: true,
+    services: accounts.listServices().map((s) => ({
+      id: s.id,
+      name: s.name,
+      createdAt: s.createdAt,
+      outputUrl: outputPath(s.id),
+    })),
+  });
+});
+
+adminApi.post('/services', (req, res) => {
+  try {
+    const { id, name, password } = req.body || {};
+    const svc = accounts.createService({ id, name, password });
+    state.initService(svc.id);
+    res.json({ ok: true, service: { id: svc.id, name: svc.name, outputUrl: outputPath(svc.id) } });
+  } catch (err) {
+    res.status(400).json({ ok: false, code: err.code || 'ERROR', error: err.message });
+  }
+});
+
+adminApi.patch('/services/:id', (req, res) => {
+  const id = req.params.id;
+  if (!accounts.serviceExists(id)) return res.status(404).json({ ok: false, error: 'サービスが見つかりません' });
+  try {
+    const { name, password, regenerateToken } = req.body || {};
+    if (typeof name === 'string' && name.trim()) accounts.renameService(id, name.trim());
+    if (password) accounts.setServicePassword(id, password);
+    if (regenerateToken) accounts.regenerateOutputToken(id);
+    res.json({ ok: true, outputUrl: outputPath(id) });
+  } catch (err) {
+    res.status(400).json({ ok: false, code: err.code || 'ERROR', error: err.message });
+  }
+});
+
+adminApi.delete('/services/:id', (req, res) => {
+  const ok = accounts.deleteService(req.params.id);
+  if (ok) state.dropService(req.params.id);
+  res.json({ ok });
+});
+
+app.use('/api/admin', adminApi);
+
+// ================= 操作API（service セッション必須・req.serviceId にスコープ） =================
+const api = express.Router();
+api.use(requireService);
+
+// クライアント設定（サービス名・出力URL）
+api.get('/config', (req, res) => {
+  const svc = accounts.getService(req.serviceId);
+  res.json({
+    serviceId: req.serviceId,
+    serviceName: svc?.name || req.serviceId,
+    outputUrl: outputPath(req.serviceId),
+  });
+});
+
+// 現在状態の取得
+api.get('/state', (req, res) => res.json(state.getState(req.serviceId)));
+
 // X投稿の自動取得（正規化データを返すだけ。キューには追加しない）
-app.post('/api/fetch', async (req, res) => {
+api.post('/fetch', async (req, res) => {
   try {
     const tweet = await fetchTweet(req.body?.url);
     tweet.avatar = await cacheImage(tweet.avatar);
@@ -114,72 +237,80 @@ app.post('/api/fetch', async (req, res) => {
 });
 
 // 画像アップロード（data URL → /media パス）
-app.post('/api/upload', (req, res) => {
+api.post('/upload', (req, res) => {
   const path = saveDataUrl(req.body?.dataUrl);
   if (!path) return res.status(400).json({ ok: false, error: '画像データが不正です' });
   res.json({ ok: true, path });
 });
 
 // 追加
-app.post('/api/tweets', async (req, res) => {
+api.post('/tweets', async (req, res) => {
   const body = await resolveMedia(req.body || {});
-  res.json({ ok: true, tweet: state.addTweet(body) });
+  res.json({ ok: true, tweet: state.addTweet(req.serviceId, body) });
 });
 
 // 更新
-app.put('/api/tweets/:id', async (req, res) => {
+api.put('/tweets/:id', async (req, res) => {
   const body = await resolveMedia(req.body || {});
-  const tweet = state.updateTweet(req.params.id, body);
+  const tweet = state.updateTweet(req.serviceId, req.params.id, body);
   if (!tweet) return res.status(404).json({ ok: false, error: '対象が見つかりません' });
   res.json({ ok: true, tweet });
 });
 
 // 削除
-app.delete('/api/tweets/:id', (req, res) => {
-  res.json({ ok: state.deleteTweet(req.params.id) });
+api.delete('/tweets/:id', (req, res) => {
+  res.json({ ok: state.deleteTweet(req.serviceId, req.params.id) });
 });
 
 // 並べ替え（up/down）
-app.post('/api/tweets/:id/reorder', (req, res) => {
-  res.json({ ok: state.reorderTweet(req.params.id, req.body?.direction) });
+api.post('/tweets/:id/reorder', (req, res) => {
+  res.json({ ok: state.reorderTweet(req.serviceId, req.params.id, req.body?.direction) });
 });
 
 // オンエア切替（id を渡すと表示、null で非表示）
-app.post('/api/onair', (req, res) => {
-  res.json({ ok: state.setOnAir(req.body?.id ?? null) });
+api.post('/onair', (req, res) => {
+  res.json({ ok: state.setOnAir(req.serviceId, req.body?.id ?? null) });
 });
 
 // 表示設定（テーマ/位置）
-app.post('/api/settings', (req, res) => {
-  res.json({ ok: true, settings: state.updateSettings(req.body || {}) });
+api.post('/settings', (req, res) => {
+  res.json({ ok: true, settings: state.updateSettings(req.serviceId, req.body || {}) });
 });
 
-// --- WebSocket（状態ブロードキャスト） ---
+app.use('/api', api);
+
+// ================= WebSocket（サービス単位のルーム） =================
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
-// OUTPUT_TOKEN設定時はWS接続もトークン/Cookie必須にする
-function wsAllowed(req) {
-  if (!outputTokenEnabled()) return true; // 公開 or パスワードのみ → WS開放
-  if (hasValidCookie(req)) return true; // ログイン済み操作画面
-  let token = null;
+// 接続元の所属サービスを決定（操作Cookie or 出力トークン）。未認可は null。
+function wsResolveService(req) {
+  let url;
   try {
-    token = new URL(req.url, 'http://localhost').searchParams.get('token');
+    url = new URL(req.url, 'http://localhost');
   } catch {
-    token = null;
+    return null;
   }
-  return checkOutputToken(token);
+  const qSid = url.searchParams.get('service');
+  const token = url.searchParams.get('token');
+  const sess = readSession(req);
+  // 操作画面：service セッション（service未指定 or 自分のserviceなら許可）
+  if (sess?.role === 'service' && sess.sid && (!qSid || qSid === sess.sid)) return sess.sid;
+  // 出力画面/プレビュー：service + 正しいトークン（または管理者/該当操作Cookie）
+  if (qSid && accounts.serviceExists(qSid) && outputAuthorized(req, qSid, token)) return qSid;
+  return null;
 }
 
-function broadcast(data) {
+function broadcast(serviceId, data) {
   const msg = JSON.stringify(data);
   for (const client of wss.clients) {
-    if (client.readyState === 1 /* OPEN */) client.send(msg);
+    if (client.readyState === 1 /* OPEN */ && client.serviceId === serviceId) client.send(msg);
   }
 }
 
 wss.on('connection', (ws, req) => {
-  if (!wsAllowed(req)) {
+  const sid = wsResolveService(req);
+  if (!sid) {
     try {
       ws.close(1008, 'unauthorized');
     } catch {
@@ -187,12 +318,13 @@ wss.on('connection', (ws, req) => {
     }
     return;
   }
-  ws.send(JSON.stringify({ type: 'state', state: state.getState() }));
+  ws.serviceId = sid;
+  ws.send(JSON.stringify({ type: 'state', state: state.getState(sid) }));
 });
 
-state.events.on('change', (s) => broadcast({ type: 'state', state: s }));
+state.events.on('change', ({ serviceId, state: s }) => broadcast(serviceId, { type: 'state', state: s }));
 
-// --- 起動 ---
+// ---- 起動 ----
 function getLanIp() {
   for (const ifaces of Object.values(os.networkInterfaces())) {
     for (const iface of ifaces || []) {
@@ -202,7 +334,6 @@ function getLanIp() {
   return '127.0.0.1';
 }
 
-// ポート衝突などの起動エラーを分かりやすく表示
 function onServerError(err) {
   if (err.code === 'EADDRINUSE') {
     console.error(`\n  ✗ ポート ${PORT} は既に使用中です。別ポートで起動してください:`);
@@ -217,18 +348,17 @@ wss.on('error', onServerError);
 
 server.listen(PORT, '0.0.0.0', () => {
   const ip = getLanIp();
-  const line = '─'.repeat(52);
-  console.log('\n  VMIXSOCIAL もどき が起動しました');
+  const line = '─'.repeat(56);
+  console.log('\n  VMIXSOCIAL もどき（マルチテナント）が起動しました');
   console.log(`  ${line}`);
-  console.log(`  操作画面 (このPC) : http://localhost:${PORT}/`);
-  console.log(`  操作画面 (LAN)    : http://${ip}:${PORT}/`);
+  console.log(`  管理画面          : http://localhost:${PORT}/admin`);
+  console.log(`  操作画面ログイン  : http://localhost:${PORT}/login   （LAN: http://${ip}:${PORT}/login）`);
   console.log(`  ${line}`);
-  console.log('  ↓ vMix の「Webブラウザ」入力に設定する出力URL');
-  const tokenSuffix = outputTokenEnabled() ? `?token=${getOutputToken()}` : '';
-  console.log(`  出力URL           : http://${ip}:${PORT}/output${tokenSuffix}`);
+  console.log(`  登録サービス数    : ${accounts.listServices().length}`);
+  console.log('  各サービスの出力URL（vMix用）は管理画面で確認/コピーできます。');
   console.log(`  ${line}`);
-  console.log(`  認証              : ${authEnabled() ? 'ON（APP_PASSWORD）' : 'OFF（LAN想定／公開時は要設定）'}`);
-  console.log(`  出力トークン      : ${outputTokenEnabled() ? 'ON（OUTPUT_TOKEN）' : 'OFF'}`);
-  console.log(`  ${line}`);
+  if (generated.admin) console.log(`  ★ 管理者パスワード（自動生成）          : ${generated.admin}`);
+  if (generated.default) console.log(`  ★ default サービスのパスワード（自動生成）: ${generated.default}`);
+  if (generated.admin || generated.default) console.log(`  ${line}`);
   console.log('  停止: Ctrl + C\n');
 });

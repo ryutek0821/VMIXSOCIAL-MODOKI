@@ -1,35 +1,29 @@
-// 認証ヘルパー。
-// - APP_PASSWORD: 設定すると操作画面と書き込みAPIをパスワード保護（Cookieセッション）。
-//   未設定なら認証なし（LAN内利用向け）。
-// - OUTPUT_TOKEN: 設定すると出力画面とWebSocketもトークン必須にできる（完全非公開化）。
+// 認証ヘルパー（マルチテナント対応）。
+// セッションはステートレスな「署名付きCookie」。payload {role:'admin'|'service', sid?} を
+//   base64url(JSON) + "." + HMAC-SHA256(SESSION_SECRET)
+// として Cookie(vms_auth) に格納する。改ざんは署名検証で弾く。
+// パスワード照合は accounts.js（scrypt）側で行い、ここはセッションの発行/検証/認可のみを担う。
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-const PASSWORD = process.env.APP_PASSWORD || '';
-const OUTPUT_TOKEN = process.env.OUTPUT_TOKEN || '';
-const SECRET = process.env.SESSION_SECRET || PASSWORD || 'vmixsocial-dev-secret';
+const SECRET =
+  process.env.SESSION_SECRET ||
+  process.env.ADMIN_PASSWORD ||
+  process.env.APP_PASSWORD ||
+  'vmixsocial-dev-secret';
 const COOKIE = 'vms_auth';
+const MAX_AGE = 7 * 24 * 60 * 60; // 7日
 
-export const authEnabled = () => PASSWORD.length > 0;
-export const outputTokenEnabled = () => OUTPUT_TOKEN.length > 0;
-export const getOutputToken = () => OUTPUT_TOKEN;
+const b64url = (buf) =>
+  Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64urlDecode = (str) => Buffer.from(str.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+const sign = (data) => createHmac('sha256', SECRET).update(data).digest('hex');
 
-// ログイン状態を表すCookie値（パスワード/シークレットから決定的に生成）
-function expectedCookieValue() {
-  return createHmac('sha256', SECRET).update('authorized').digest('hex');
-}
-
-function safeEqual(a, b) {
+// 定数時間の文字列比較（トークン照合などに使用）
+export function constantTimeEqual(a, b) {
   const ba = Buffer.from(String(a || ''));
   const bb = Buffer.from(String(b || ''));
   return ba.length === bb.length && timingSafeEqual(ba, bb);
-}
-
-export function checkPassword(input) {
-  return authEnabled() && safeEqual(input, PASSWORD);
-}
-export function checkOutputToken(input) {
-  return outputTokenEnabled() && safeEqual(input, OUTPUT_TOKEN);
 }
 
 export function parseCookies(header = '') {
@@ -41,27 +35,58 @@ export function parseCookies(header = '') {
   return out;
 }
 
-export function hasValidCookie(req) {
-  if (!authEnabled()) return true; // 認証無効なら常に許可
-  const cookies = parseCookies(req.headers?.cookie || '');
-  return safeEqual(cookies[COOKIE], expectedCookieValue());
+function encodeToken(payload) {
+  const body = b64url(JSON.stringify(payload));
+  return `${body}.${sign(body)}`;
+}
+function decodeToken(token) {
+  if (typeof token !== 'string' || !token.includes('.')) return null;
+  const [body, mac] = token.split('.');
+  if (!body || !mac || !constantTimeEqual(mac, sign(body))) return null;
+  try {
+    return JSON.parse(b64urlDecode(body).toString('utf8'));
+  } catch {
+    return null;
+  }
 }
 
-export function setAuthCookie(res, secure) {
-  const attrs = ['HttpOnly', 'SameSite=Lax', 'Path=/', 'Max-Age=604800']; // 7日
+export function issueSession(res, payload, secure) {
+  const attrs = ['HttpOnly', 'SameSite=Lax', 'Path=/', `Max-Age=${MAX_AGE}`];
   if (secure) attrs.push('Secure');
-  res.setHeader('Set-Cookie', `${COOKIE}=${expectedCookieValue()}; ${attrs.join('; ')}`);
+  res.setHeader('Set-Cookie', `${COOKIE}=${encodeToken(payload)}; ${attrs.join('; ')}`);
 }
-export function clearAuthCookie(res) {
+export function clearSession(res) {
   res.setHeader('Set-Cookie', `${COOKIE}=; HttpOnly; Path=/; Max-Age=0`);
 }
 
-// 操作画面・書き込みAPIを保護するミドルウェア
-export function requireAuth(req, res, next) {
-  if (hasValidCookie(req)) return next();
-  // /api/* マウント時は req.path が相対化されるため originalUrl で判定する
+// 現在のセッション {role, sid} を取得（無効/未ログインなら null）
+export function readSession(req) {
+  const token = parseCookies(req.headers?.cookie || '')[COOKIE];
+  const data = decodeToken(token);
+  if (!data || (data.role !== 'admin' && data.role !== 'service')) return null;
+  return data;
+}
+
+// 操作画面・操作API用ミドルウェア：service セッション必須。成功時 req.serviceId を付与。
+export function requireService(req, res, next) {
+  const s = readSession(req);
+  if (s && s.role === 'service' && s.sid) {
+    req.serviceId = s.sid;
+    return next();
+  }
+  // /api/* は originalUrl で判定（マウントで req.path が相対化されるため）
   if ((req.originalUrl || req.url).startsWith('/api/')) {
     return res.status(401).json({ ok: false, error: '認証が必要です（再ログインしてください）' });
   }
   return res.redirect('/login');
+}
+
+// 管理画面・管理API用ミドルウェア：admin セッション必須。
+export function requireAdmin(req, res, next) {
+  const s = readSession(req);
+  if (s && s.role === 'admin') return next();
+  if ((req.originalUrl || req.url).startsWith('/api/')) {
+    return res.status(401).json({ ok: false, error: '管理者認証が必要です' });
+  }
+  return res.redirect('/admin/login');
 }

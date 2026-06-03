@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>管理 — VMIXSOCIAL もどき</title>
+    <link rel="stylesheet" href="/control.css" />
+    <style>
+      .wrap { max-width: 880px; margin: 4vh auto; padding: 0 16px; }
+      .admin-login { max-width: 340px; margin: 12vh auto; padding: 28px; }
+      .admin-login form { display: flex; flex-direction: column; gap: 12px; }
+      .hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+      .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+      .row .lbl { flex: 1 1 160px; }
+      .muted { color: var(--muted); font-size: 13px; }
+      .svc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+      .svc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+      .svc__name { font-weight: 600; }
+      .svc__id { color: var(--muted); font-size: 12px; }
+      .svc__url { flex: 1 1 300px; min-width: 0; }
+      .svc__url input { width: 100%; font-size: 12px; }
+      .svc__actions { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+    </style>
+  </head>
+  <body>
+    <!-- ログイン前 -->
+    <div id="loginView" class="admin-login panel" hidden>
+      <h1>管理ログイン</h1>
+      <p class="muted">サービス（ID＋パスワード）の追加・削除を行う管理画面です。</p>
+      <form id="loginForm">
+        <label class="lbl">管理者パスワード
+          <input id="adminPw" type="password" autocomplete="current-password" autofocus />
+        </label>
+        <button class="btn btn--primary" type="submit">ログイン</button>
+        <p id="loginMsg" class="msg msg--err"></p>
+      </form>
+    </div>
+
+    <!-- ログイン後 -->
+    <div id="dashView" class="wrap" hidden>
+      <div class="hd">
+        <h1>サービス管理</h1>
+        <button id="logoutBtn" class="btn btn--ghost">ログアウト</button>
+      </div>
+
+      <section class="panel" style="margin-bottom: 18px">
+        <h2>サービスを追加</h2>
+        <div class="row">
+          <label class="lbl">ID（英小文字・数字・- ・ _）
+            <input id="newId" type="text" placeholder="例: stream-a" autocapitalize="none" />
+          </label>
+          <label class="lbl">表示名
+            <input id="newName" type="text" placeholder="例: 配信A" />
+          </label>
+          <label class="lbl">パスワード
+            <input id="newPw" type="text" placeholder="4文字以上" />
+          </label>
+          <button id="addBtn" class="btn btn--primary">＋ 追加</button>
+        </div>
+        <p id="addMsg" class="msg"></p>
+      </section>
+
+      <section class="panel">
+        <h2>サービス一覧 <span id="count" class="count">0</span></h2>
+        <p class="muted">各サービスの「出力URL」を vMix の Web ブラウザ入力に設定します。</p>
+        <ul id="list" class="svc-list"></ul>
+        <p id="empty" class="muted" hidden>まだサービスがありません。上のフォームから追加してください。</p>
+      </section>
+    </div>
+
+    <script src="/admin.js"></script>
+  </body>
+</html>
