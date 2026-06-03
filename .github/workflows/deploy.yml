@@ -1,0 +1,47 @@
+name: Deploy (production)
+
+# main への push（PR マージ含む）で本番サーバーへ SSH 接続し、
+#   git で main を反映 → 依存インストール → アプリ再起動 を実行する。
+# 手動実行も可能（Actions タブ → このワークフロー → Run workflow）。
+#
+# 必要な設定（Settings → Secrets and variables → Actions）:
+#   [Secrets]   SSH_HOST  : 本番サーバーのホスト/IP
+#               SSH_USER  : SSH ユーザー名
+#               SSH_KEY   : SSH 秘密鍵（全文）
+#               SSH_PORT  : SSH ポート（任意・未設定なら 22）
+#   [Variables] APP_DIR     : サーバー上のアプリ配置ディレクトリ（例: /home/app/VMIXSOCIAL-MODOKI）
+#               RESTART_CMD : 再起動コマンド（例: pm2 restart vmixsocial-modoki）
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: SSH deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || '22' }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${{ vars.APP_DIR }}"
+            echo "→ fetch & reset to origin/main"
+            git fetch --all --prune
+            git reset --hard origin/main
+            echo "→ install production deps"
+            npm install --omit=dev
+            echo "→ restart app"
+            ${{ vars.RESTART_CMD }}
+            echo "✓ deploy finished"
