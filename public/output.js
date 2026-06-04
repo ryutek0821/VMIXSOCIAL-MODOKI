@@ -30,8 +30,10 @@ function connect() {
 }
 
 function applyState(state) {
+  const layout = state.settings?.layout || 'card';
   const pos = state.settings?.position || 'bottom-left';
-  stage.className = `stage pos-${pos}`;
+  // バナーは全幅・下寄せ固定なので位置プリセットは付けない
+  stage.className = layout === 'banner' ? 'stage layout-banner' : `stage pos-${pos}`;
 
   const onAir = state.queue.find((t) => t.id === state.onAirId) || null;
   if (!onAir) {
@@ -39,7 +41,8 @@ function applyState(state) {
     return;
   }
 
-  const key = JSON.stringify(onAir) + '|' + (state.settings?.theme || '');
+  // レイアウト/テーマはカードのDOM構造に影響するのでキーに含めて再描画させる
+  const key = JSON.stringify(onAir) + '|' + (state.settings?.theme || '') + '|' + layout;
   if (key === lastKey) {
     show(); // 同一内容なら表示維持
     return;

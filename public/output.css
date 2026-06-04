@@ -34,6 +34,19 @@ body {
   font-size: 23px;
 }
 
+/* 下部バナー：表示位置プリセットは無視し、画面下部に全幅で出す。
+   実況2人などの画面の下にローワーサードとして重ねる用途。 */
+.stage.layout-banner {
+  align-items: flex-end;
+  padding: 0 2.5vw 3.5vh;
+}
+.stage.layout-banner .card-wrap {
+  width: 100%;
+}
+.stage.layout-banner .card-wrap .x-card {
+  font-size: 24px;
+}
+
 .card-wrap.hidden {
   opacity: 0;
   transform: translateY(28px) scale(0.98);

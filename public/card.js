@@ -30,11 +30,20 @@ function formatText(text) {
   return html;
 }
 
-export function cardHTML(tweet = {}, settings = {}) {
-  const theme = tweet.theme || settings.theme || 'dark';
-  const avatar = tweet.avatar || DEFAULT_AVATAR;
-  const badge = tweet.verified ? BADGE_SVG : '';
-  const handle = tweet.handle ? '@' + esc(tweet.handle) : '';
+// カード/バナーで共通の部品（テーマ・アイコン・名前など）をまとめて作る
+function cardParts(tweet, settings) {
+  return {
+    theme: tweet.theme || settings.theme || 'dark',
+    avatar: tweet.avatar || DEFAULT_AVATAR,
+    badge: tweet.verified ? BADGE_SVG : '',
+    handle: tweet.handle ? '@' + esc(tweet.handle) : '',
+    name: esc(tweet.name) || '名前未設定',
+  };
+}
+
+// 標準（縦型）カード
+function standardHTML(tweet, settings) {
+  const { theme, avatar, badge, handle, name } = cardParts(tweet, settings);
   const media = tweet.image
     ? `<div class="x-card__media"><img src="${esc(tweet.image)}" alt=""></div>`
     : '';
@@ -44,7 +53,7 @@ export function cardHTML(tweet = {}, settings = {}) {
         <img class="x-card__avatar" src="${esc(avatar)}" alt=""
              onerror="this.src='${DEFAULT_AVATAR}'">
         <div class="x-card__names">
-          <span class="x-card__name"><span class="x-card__display">${esc(tweet.name) || '名前未設定'}</span>${badge}</span>
+          <span class="x-card__name"><span class="x-card__display">${name}</span>${badge}</span>
           <span class="x-card__handle">${handle}</span>
         </div>
         ${LOGO_SVG}
@@ -52,6 +61,34 @@ export function cardHTML(tweet = {}, settings = {}) {
       <div class="x-card__body">${formatText(tweet.text)}</div>
       ${media}
     </div>`;
+}
+
+// 横長バナー（下部テロップ／ローワーサード）。実況2人などの画面下に全幅で出す。
+function bannerHTML(tweet, settings) {
+  const { theme, avatar, badge, handle, name } = cardParts(tweet, settings);
+  const media = tweet.image
+    ? `<div class="x-banner__media"><img src="${esc(tweet.image)}" alt=""></div>`
+    : '';
+  return `
+    <div class="x-card x-card--banner" data-theme="${esc(theme)}">
+      <img class="x-card__avatar" src="${esc(avatar)}" alt=""
+           onerror="this.src='${DEFAULT_AVATAR}'">
+      <div class="x-banner__main">
+        <div class="x-banner__head">
+          <span class="x-card__name"><span class="x-card__display">${name}</span>${badge}</span>
+          <span class="x-card__handle">${handle}</span>
+        </div>
+        <div class="x-card__body">${formatText(tweet.text)}</div>
+      </div>
+      ${media}
+      ${LOGO_SVG}
+    </div>`;
+}
+
+export function cardHTML(tweet = {}, settings = {}) {
+  return (settings.layout || 'card') === 'banner'
+    ? bannerHTML(tweet, settings)
+    : standardHTML(tweet, settings);
 }
 
 export function renderCard(el, tweet, settings) {

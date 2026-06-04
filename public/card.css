@@ -110,3 +110,70 @@
   max-height: 17em;
   object-fit: cover;
 }
+
+/* ===== 横長バナー（下部テロップ／ローワーサード）レイアウト ===== */
+/* アイコン｜名前・本文｜（画像）｜ロゴ を1行に並べ、全幅で表示する。 */
+.x-card--banner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  border-radius: 14px;
+  padding: 0.65em 1em;
+}
+.x-card--banner .x-card__avatar {
+  width: 2.8em;
+  height: 2.8em;
+}
+.x-banner__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.1em;
+}
+.x-banner__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+  min-width: 0;
+}
+.x-banner__head .x-card__name {
+  flex: 0 1 auto;
+  font-size: 1.05em;
+}
+.x-banner__head .x-card__handle {
+  flex: 0 0 auto;
+}
+.x-card--banner .x-card__body {
+  margin-top: 0;
+  font-size: 1.05em;
+  line-height: 1.35;
+  /* 横長なので最大2行に省略して読みやすく */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow: hidden;
+}
+.x-banner__media {
+  flex: 0 0 auto;
+  width: 4em;
+  height: 4em;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.x-banner__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.x-card--banner .x-card__logo {
+  width: 1.6em;
+  height: 1.6em;
+  margin-left: 0;
+}

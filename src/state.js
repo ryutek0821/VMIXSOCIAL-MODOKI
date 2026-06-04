@@ -13,7 +13,7 @@ export const events = new EventEmitter();
 const defaultState = () => ({
   queue: [],
   onAirId: null,
-  settings: { theme: 'dark', position: 'bottom-left' },
+  settings: { theme: 'dark', position: 'bottom-left', layout: 'card' },
 });
 
 // sid -> ServiceState（メモリキャッシュ。初回アクセス時にディスクから遅延ロード）
@@ -154,6 +154,7 @@ export function updateSettings(sid, patch) {
   const next = { ...s.settings };
   if (patch.theme === 'light' || patch.theme === 'dark') next.theme = patch.theme;
   if (typeof patch.position === 'string') next.position = patch.position;
+  if (patch.layout === 'card' || patch.layout === 'banner') next.layout = patch.layout;
   s.settings = next;
   changed(sid);
   return s.settings;
