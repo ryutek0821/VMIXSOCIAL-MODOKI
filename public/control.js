@@ -9,7 +9,7 @@ const TRANSPARENT = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='
 const api = (path, opts = {}) =>
   fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts }).then((r) => r.json());
 
-let state = { queue: [], onAirId: null, settings: { theme: 'dark', position: 'bottom-left' } };
+let state = { queue: [], onAirId: null, settings: { theme: 'dark', position: 'bottom-left', layout: 'card' } };
 let editingId = null;
 let avatarData = null; // アップロードした画像の data URL（あれば優先）
 let imageData = null;
@@ -242,6 +242,9 @@ $('offAir').addEventListener('click', () =>
 );
 
 // ---- 表示設定 ----
+$('layout').addEventListener('change', () =>
+  api('/api/settings', { method: 'POST', body: JSON.stringify({ layout: $('layout').value }) })
+);
 $('position').addEventListener('change', () =>
   api('/api/settings', { method: 'POST', body: JSON.stringify({ position: $('position').value }) })
 );
@@ -250,8 +253,15 @@ $('globalTheme').addEventListener('change', () =>
 );
 function syncSettings() {
   // 操作中のセレクトは上書きしない
+  if (document.activeElement !== $('layout')) $('layout').value = state.settings.layout || 'card';
   if (document.activeElement !== $('position')) $('position').value = state.settings.position || 'bottom-left';
   if (document.activeElement !== $('globalTheme')) $('globalTheme').value = state.settings.theme || 'dark';
+  // バナーは画面下部・全幅で固定。位置プリセットは使わないので選択を無効化する。
+  const isBanner = (state.settings.layout || 'card') === 'banner';
+  $('position').disabled = isBanner;
+  $('position').title = isBanner ? '下部バナーは画面下部・全幅で固定です' : '';
+  // プレビューも現在のレイアウトに追従させる
+  updatePreview();
 }
 
 // ---- 起動 ----
