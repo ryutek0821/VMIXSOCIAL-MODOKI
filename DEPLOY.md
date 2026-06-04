@@ -1,6 +1,12 @@
-# デプロイ手順（PaaS）
+# デプロイ手順
 
-クラウドにデプロイして、別拠点のvMixからインターネット越しに使うための手順です。
+> **【現行の本番環境】**
+> 本番は **自前サーバー（自鯖）を Cloudflare Tunnel で公開**しています（URL: https://vmixsocial-modoki.ryuteklabo.com ）。
+> **Render は使っていません。** 下記の「Render / Railway / Fly.io」手順および同梱 `render.yaml` は
+> **レガシー（参考・代替案）**です。自鯖へのデプロイ手順は **[CLAUDE.md](./CLAUDE.md)** を参照してください。
+> （`main` への push だけでは自鯖に反映されません。SSH デプロイのワークフローは `chore/ci-ssh-deploy` ブランチにあります。）
+
+以下は PaaS にデプロイする場合の参考手順です。
 **WebSocket常駐サーバー**なので、**Vercel / Netlify（サーバーレス）は使えません**。
 WebSocket対応のPaaS（**Render** / **Railway** / Fly.io など）を使います。
 
