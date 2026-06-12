@@ -35,30 +35,38 @@ function renderList(services) {
   const list = $('list');
   list.innerHTML = '';
   for (const s of services) {
-    const url = location.origin + s.outputUrl;
+    const ctrlUrl = location.origin + (s.controlUrl || '/login?id=' + encodeURIComponent(s.id));
+    const outUrl = location.origin + s.outputUrl;
     const li = document.createElement('li');
     li.className = 'svc panel';
     li.innerHTML = `
-      <div>
+      <div class="svc__head">
         <div class="svc__name"></div>
         <div class="svc__id"></div>
+        <div class="svc__actions">
+          <button class="btn btn--ghost btn--sm" data-act="pw">PW変更</button>
+          <button class="btn btn--danger btn--sm" data-act="del">削除</button>
+        </div>
       </div>
-      <div class="svc__url"><input type="text" readonly /></div>
-      <div class="svc__actions">
-        <button class="btn btn--ghost btn--sm" data-act="copy">URLコピー</button>
-        <button class="btn btn--ghost btn--sm" data-act="open">出力 ↗</button>
-        <button class="btn btn--ghost btn--sm" data-act="pw">PW変更</button>
-        <button class="btn btn--danger btn--sm" data-act="del">削除</button>
+      <div class="svc__urls">
+        <div class="svc__url"><span class="svc__url-label">操作用</span><input type="text" readonly /><button class="btn btn--ghost btn--sm" data-act="copy-ctrl">コピー</button><button class="btn btn--ghost btn--sm" data-act="open-ctrl">開く ↗</button></div>
+        <div class="svc__url"><span class="svc__url-label">出力用</span><input type="text" readonly /><button class="btn btn--ghost btn--sm" data-act="copy-out">コピー</button><button class="btn btn--ghost btn--sm" data-act="open-out">開く ↗</button></div>
       </div>`;
     li.querySelector('.svc__name').textContent = s.name;
     li.querySelector('.svc__id').textContent = 'ID: ' + s.id;
-    const input = li.querySelector('.svc__url input');
-    input.value = url;
-    li.querySelector('[data-act="copy"]').onclick = () => {
-      input.select();
-      navigator.clipboard?.writeText(url).catch(() => {});
+    const [ctrlInput, outInput] = li.querySelectorAll('.svc__url input');
+    ctrlInput.value = ctrlUrl;
+    outInput.value = outUrl;
+    li.querySelector('[data-act="copy-ctrl"]').onclick = () => {
+      ctrlInput.select();
+      navigator.clipboard?.writeText(ctrlUrl).catch(() => {});
     };
-    li.querySelector('[data-act="open"]').onclick = () => window.open(url, '_blank', 'noopener');
+    li.querySelector('[data-act="open-ctrl"]').onclick = () => window.open(ctrlUrl, '_blank', 'noopener');
+    li.querySelector('[data-act="copy-out"]').onclick = () => {
+      outInput.select();
+      navigator.clipboard?.writeText(outUrl).catch(() => {});
+    };
+    li.querySelector('[data-act="open-out"]').onclick = () => window.open(outUrl, '_blank', 'noopener');
     li.querySelector('[data-act="pw"]').onclick = () => changePw(s.id);
     li.querySelector('[data-act="del"]').onclick = () => del(s.id, s.name);
     list.appendChild(li);

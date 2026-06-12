@@ -75,6 +75,9 @@ migrate();
 const outputPath = (sid) =>
   `/output?service=${encodeURIComponent(sid)}&token=${accounts.getOutputToken(sid)}`;
 
+// サービスの操作用URL（ログインページに ID をプリフィル）
+const controlPath = (sid) => `/login?id=${encodeURIComponent(sid)}`;
+
 // 出力（/output・WS）へのアクセス可否：管理者 or そのサービスの操作Cookie or 正しい出力トークン
 function outputAuthorized(req, sid, token) {
   const sess = readSession(req);
@@ -175,6 +178,7 @@ adminApi.get('/services', (req, res) => {
       name: s.name,
       createdAt: s.createdAt,
       outputUrl: outputPath(s.id),
+      controlUrl: controlPath(s.id),
     })),
   });
 });
@@ -184,7 +188,7 @@ adminApi.post('/services', (req, res) => {
     const { id, name, password } = req.body || {};
     const svc = accounts.createService({ id, name, password });
     state.initService(svc.id);
-    res.json({ ok: true, service: { id: svc.id, name: svc.name, outputUrl: outputPath(svc.id) } });
+    res.json({ ok: true, service: { id: svc.id, name: svc.name, outputUrl: outputPath(svc.id), controlUrl: controlPath(svc.id) } });
   } catch (err) {
     res.status(400).json({ ok: false, code: err.code || 'ERROR', error: err.message });
   }

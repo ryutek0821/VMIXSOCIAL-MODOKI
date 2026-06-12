@@ -29,6 +29,12 @@
       </form>
     </div>
     <script>
+      const prefill = new URLSearchParams(location.search).get('id');
+      if (prefill) {
+        document.getElementById('id').value = prefill;
+        document.getElementById('password').focus();
+      }
+
       document.getElementById('f').addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('id').value.trim();
