@@ -14,12 +14,16 @@
       .row .lbl { flex: 1 1 160px; }
       .muted { color: var(--muted); font-size: 13px; }
       .svc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-      .svc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+      .svc { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+      .svc__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .svc__name { font-weight: 600; }
       .svc__id { color: var(--muted); font-size: 12px; }
-      .svc__url { flex: 1 1 300px; min-width: 0; }
-      .svc__url input { width: 100%; font-size: 12px; }
       .svc__actions { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+      .svc__urls { display: flex; flex-direction: column; gap: 6px; }
+      .svc__url { display: flex; align-items: center; gap: 6px; }
+      .svc__url-label { flex-shrink: 0; width: 3.5em; color: var(--muted); font-size: 12px; }
+      .svc__url input { flex: 1; min-width: 0; font-size: 12px; }
+      .svc__url .btn { flex-shrink: 0; }
     </style>
   </head>
   <body>
@@ -62,7 +66,7 @@
 
       <section class="panel">
         <h2>サービス一覧 <span id="count" class="count">0</span></h2>
-        <p class="muted">各サービスの「出力URL」を vMix の Web ブラウザ入力に設定します。</p>
+        <p class="muted"><strong>操作用URL</strong>は投稿を操作する人に、<strong>出力用URL</strong>は vMix の Web ブラウザ入力に設定します。</p>
         <ul id="list" class="svc-list"></ul>
         <p id="empty" class="muted" hidden>まだサービスがありません。上のフォームから追加してください。</p>
       </section>
