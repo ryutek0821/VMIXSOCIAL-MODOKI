@@ -4,4 +4,8 @@ media/
 .env
 .env.local
 *.log
+*.out
+.ngrok-test.out
 .DS_Store
+.claude/
+.serena/
